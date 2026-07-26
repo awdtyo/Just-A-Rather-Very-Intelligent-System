@@ -1,0 +1,36 @@
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Models & audio artifacts (large; keep local)
+models/**
+!models/.gitkeep
+*.onnx
+*.onnx.json
+*.pt
+*.bin
+*.wav
+*.mp3
+
+# Logs
+logs/**
+!logs/.gitkeep
+*.log
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp

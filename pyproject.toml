@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis"
+version = "0.1.0"
+description = "JARVIS v2 — low-latency local voice assistant with a streaming overlapping pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Aditya" }]
+dependencies = [
+    "openwakeword==0.6.0",
+    "faster-whisper==1.2.1",
+    "ctranslate2==4.8.1",
+    "onnxruntime==1.28.0",
+    "groq==1.6.0",
+    "piper-tts==1.6.0",
+    "sounddevice==0.5.5",
+    "numpy>=1.26,<2.3",
+    "pydantic==2.13.4",
+    "pydantic-settings>=2.0,<3",
+    "python-dotenv==1.2.2",
+    "aiofiles==25.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+jarvis = "jarvis.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["jarvis*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

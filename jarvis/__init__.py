@@ -1,0 +1,3 @@
+"""JARVIS v2 — low-latency local voice assistant."""
+
+__version__ = "0.1.0"
