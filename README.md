@@ -67,7 +67,7 @@ PYTHONPATH=. python scripts/test_tts.py --no-play
 PYTHONPATH=. python scripts/test_orchestrator.py
 ```
 
-Barge-in works on wake word **or** loud speech while JARVIS is talking (`BARGE_IN_ON_VAD`). If speaker echo false-triggers, raise `BARGE_IN_VAD_THRESHOLD`, increase `BARGE_IN_GRACE_MS`, use headphones, or set `BARGE_IN_ON_VAD=false`.
+Barge-in: say the wake word to interrupt. VAD barge-in is **off by default** because laptop speaker echo was cutting replies mid-sentence; enable with headphones via `BARGE_IN_ON_VAD=true`.
 
 ## Build order
 
@@ -81,6 +81,13 @@ Barge-in works on wake word **or** loud speech while JARVIS is talking (`BARGE_I
 8. Full asyncio orchestrator + state machine ← done
 9. Barge-in ← done
 10. End-to-end latency logging / live debug ← done
+11. Profile/notes memory + anti-hallucination prompt ← done
+12. Tool registry + confirm gate + orchestrator state ← done
+13. Google OAuth + Calendar + Gmail tools ← done
+14. WhatsApp Cloud API connector ← done
+15. Instagram Graph connector ← done
+16. LinkedIn connector (posts + draft-only DMs) ← done
+17. Voice UX polish: draft readback before confirm ← done
 
 ## Latency metrics (JSON lines → `logs/jarvis.jsonl`)
 

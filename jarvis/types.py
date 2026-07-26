@@ -22,6 +22,7 @@ class PipelineState(Enum):
     LISTENING = auto()
     TRANSCRIBING = auto()
     THINKING = auto()
+    AWAITING_CONFIRM = auto()
     SPEAKING = auto()
 
 

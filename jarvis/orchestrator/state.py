@@ -27,11 +27,18 @@ _TRANSITIONS: dict[PipelineState, set[PipelineState]] = {
         PipelineState.SPEAKING,
         PipelineState.IDLE,
         PipelineState.LISTENING,  # barge-in / cancel
+        PipelineState.AWAITING_CONFIRM,  # tool needs confirmation
+    },
+    PipelineState.AWAITING_CONFIRM: {
+        PipelineState.SPEAKING,  # confirmed → execute → speak
+        PipelineState.IDLE,  # cancelled
+        PipelineState.LISTENING,  # barge-in resets
     },
     PipelineState.SPEAKING: {
         PipelineState.IDLE,
         PipelineState.LISTENING,  # barge-in
         PipelineState.WAKE_DETECTED,
+        PipelineState.AWAITING_CONFIRM,  # confirm prompt just spoken
     },
 }
 
@@ -71,8 +78,8 @@ class StateMachine:
             self._on_change(old, new_state)
 
     def barge_in(self) -> None:
-        """Interrupt SPEAKING/THINKING and return to LISTENING."""
-        if self.state in {PipelineState.SPEAKING, PipelineState.THINKING}:
+        """Interrupt SPEAKING/THINKING/AWAITING_CONFIRM and return to LISTENING."""
+        if self.state in {PipelineState.SPEAKING, PipelineState.THINKING, PipelineState.AWAITING_CONFIRM}:
             self.transition(PipelineState.LISTENING)
         elif self.state == PipelineState.IDLE:
             self.transition(PipelineState.WAKE_DETECTED)

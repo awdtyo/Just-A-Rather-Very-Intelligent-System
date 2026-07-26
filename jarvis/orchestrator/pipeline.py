@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from jarvis.audio.capture import AudioCapture
 from jarvis.audio.playback import AudioPlayback
@@ -13,9 +13,13 @@ from jarvis.chunker.sentences import SentenceChunker
 from jarvis.config import Settings
 from jarvis.llm.groq_client import GroqBrain
 from jarvis.logging_util import log_event, log_turn_latency, setup_logging
+from jarvis.memory.profile import ProfileMemory
 from jarvis.orchestrator.state import StateMachine
 from jarvis.stt.whisper import StreamingTranscriber
 from jarvis.tts.piper import PiperTTS
+from jarvis.tools.base import ToolRegistry
+from jarvis.tools.confirm import ConfirmStore, PendingAction
+from jarvis.tools.memory_tools import build_memory_tools
 from jarvis.types import (
     PipelineState,
     SentenceChunk,
@@ -45,7 +49,25 @@ class Pipeline:
         self.wake = WakeWordDetector(settings, audio_queue=self.wake_q)
         self.vad = SileroVAD(settings)
         self.stt = StreamingTranscriber(settings)
-        self.llm = GroqBrain(settings)
+
+        # Memory
+        profile_path = settings.resolve_path(settings.profile_path)
+        notes_dir = settings.resolve_path(settings.notes_dir)
+        self.memory = ProfileMemory(profile_path, notes_dir)
+
+        # Tool registry
+        self.tool_registry = ToolRegistry()
+        self.confirm_store = ConfirmStore()
+        self._register_tools()
+
+        # LLM with memory context + tools
+        memory_context = self.memory.build_context_block()
+        self.llm = GroqBrain(
+            settings,
+            memory_context=memory_context,
+            tool_registry=self.tool_registry,
+        )
+
         self.chunker = SentenceChunker()
         self.tts = PiperTTS(settings)
         self.playback = AudioPlayback(settings)
@@ -60,13 +82,86 @@ class Pipeline:
         self._speaking_since: Optional[float] = None
         self._barge_vad = SileroVAD(settings)
         self._barge_vad.threshold = settings.barge_in_vad_threshold
-        # Re-derive frame hysteresis against the higher barge threshold context
         logger.info(
             "barge_vad_threshold=%.2f grace_ms=%s enabled=%s",
             self._barge_vad.threshold,
             settings.barge_in_grace_ms,
             settings.barge_in_on_vad,
         )
+
+    def _register_tools(self) -> None:
+        """Register all available tools."""
+        # Memory tools (always available)
+        for tool in build_memory_tools(self.memory):
+            self.tool_registry.register(tool)
+
+        # Google tools (only if OAuth token exists)
+        token_path = self.settings.resolve_path(self.settings.google_token_path)
+        if token_path.exists():
+            try:
+                from jarvis.tools.calendar_google import build_calendar_tools
+                from jarvis.tools.gmail import build_gmail_tools
+
+                for tool in build_calendar_tools(
+                    token_path,
+                    self.settings.google_client_id,
+                    self.settings.google_client_secret,
+                ):
+                    self.tool_registry.register(tool)
+
+                for tool in build_gmail_tools(
+                    token_path,
+                    self.settings.google_client_id,
+                    self.settings.google_client_secret,
+                ):
+                    self.tool_registry.register(tool)
+
+                logger.info("google tools registered (token found)")
+            except Exception:
+                logger.exception("failed to register google tools")
+        else:
+            logger.info("google tools skipped (no token at %s)", token_path)
+
+        # WhatsApp Cloud API tools
+        if self.settings.meta_wa_token and self.settings.meta_wa_phone_number_id:
+            try:
+                from jarvis.tools.whatsapp_meta import build_whatsapp_tools
+
+                for tool in build_whatsapp_tools(
+                    self.settings.meta_wa_token,
+                    self.settings.meta_wa_phone_number_id,
+                ):
+                    self.tool_registry.register(tool)
+                logger.info("whatsapp tools registered")
+            except Exception:
+                logger.exception("failed to register whatsapp tools")
+
+        # Instagram Graph API tools
+        if self.settings.meta_ig_token and self.settings.meta_ig_user_id:
+            try:
+                from jarvis.tools.instagram_meta import build_instagram_tools
+
+                for tool in build_instagram_tools(
+                    self.settings.meta_ig_token,
+                    self.settings.meta_ig_user_id,
+                ):
+                    self.tool_registry.register(tool)
+                logger.info("instagram tools registered")
+            except Exception:
+                logger.exception("failed to register instagram tools")
+
+        # LinkedIn tools
+        if self.settings.linkedin_access_token:
+            try:
+                from jarvis.tools.linkedin import build_linkedin_tools
+
+                for tool in build_linkedin_tools(
+                    self.settings.linkedin_access_token,
+                ):
+                    self.tool_registry.register(tool)
+                logger.info("linkedin tools registered")
+            except Exception:
+                logger.exception("failed to register linkedin tools")
 
     async def run(self) -> None:
         log_event(self.logger, "pipeline_starting")
@@ -83,7 +178,12 @@ class Pipeline:
             asyncio.create_task(self._barge_vad_loop(), name="barge-vad"),
         ]
         log_event(self.logger, "pipeline_running")
-        print("JARVIS listening — say 'hey jarvis'. Ctrl+C to stop.", flush=True)
+        tools_desc = ", ".join(self.tool_registry.names) if not self.tool_registry.is_empty else "none"
+        print(
+            f"JARVIS listening — say 'hey jarvis'. Ctrl+C to stop. "
+            f"[tools: {tools_desc}]",
+            flush=True,
+        )
         try:
             await self._stop.wait()
         except asyncio.CancelledError:
@@ -148,6 +248,11 @@ class Pipeline:
         while not self._stop.is_set():
             event: WakeEvent = await self.wake.event_queue.get()
             if self.state.state in {PipelineState.SPEAKING, PipelineState.THINKING}:
+                await self._handle_barge_in(wake=event)
+                continue
+            if self.state.state == PipelineState.AWAITING_CONFIRM:
+                # Wake word during confirm cancels the pending action
+                self.confirm_store.clear()
                 await self._handle_barge_in(wake=event)
                 continue
             if self.state.state != PipelineState.IDLE:
@@ -236,6 +341,7 @@ class Pipeline:
         if self._utterance_task and not self._utterance_task.done():
             self._utterance_task.cancel()
             await asyncio.gather(self._utterance_task, return_exceptions=True)
+        self.confirm_store.clear()
         self.state.barge_in()
 
         if wake is not None:
@@ -324,30 +430,42 @@ class Pipeline:
         assistant_parts: list[str] = []
 
         try:
-            first = True
-            async for token in self.llm.stream_reply(user_text):
+            # Use the tool-aware completion path
+            text, tool_calls = await self.llm.complete_with_tools(user_text)
+
+            if self._barge_requested.is_set():
+                return
+
+            # If there are tool calls, execute them
+            if tool_calls:
+                await self._execute_tools(turn, user_text, tool_calls, assistant_parts)
+                return
+
+            # Pure text reply — stream it through the chunker
+            turn.first_llm_token_ts = now_monotonic()
+            log_event(
+                self.logger,
+                "first_llm_token",
+                turn_id=turn.turn_id,
+                stt_to_token_ms=turn.ms(turn.stt_final_ts, turn.first_llm_token_ts),
+            )
+
+            # If complete_with_tools returned text directly (no tools), we need to
+            # stream it through chunker. But since it's not streamed, feed it as one piece.
+            for char in text:
+                assistant_parts.append(char)
+
+            for sentence in self.chunker.feed(text):
                 if self._barge_requested.is_set():
                     return
-                if first:
-                    turn.first_llm_token_ts = now_monotonic()
-                    first = False
-                    log_event(
-                        self.logger,
-                        "first_llm_token",
-                        turn_id=turn.turn_id,
-                        stt_to_token_ms=turn.ms(
-                            turn.stt_final_ts, turn.first_llm_token_ts
-                        ),
-                    )
-                assistant_parts.append(token)
-                for sentence in self.chunker.feed(token):
-                    await self._speak_sentence(turn, sentence, sentence_index)
-                    sentence_index += 1
+                await self._speak_sentence(turn, sentence, sentence_index)
+                sentence_index += 1
             for sentence in self.chunker.flush():
                 if self._barge_requested.is_set():
                     return
                 await self._speak_sentence(turn, sentence, sentence_index)
                 sentence_index += 1
+
         except Exception:
             logger.exception("think_and_speak_error")
             self.state.transition(PipelineState.IDLE)
@@ -368,6 +486,229 @@ class Pipeline:
             flush=True,
         )
         self.state.transition(PipelineState.IDLE)
+
+    async def _execute_tools(
+        self,
+        turn: TurnLatency,
+        user_text: str,
+        tool_calls: list[dict[str, Any]],
+        assistant_parts: list[str],
+    ) -> None:
+        """Execute tool calls, handling confirm gate as needed."""
+        tool_results: list[dict[str, str]] = []
+
+        for tc in tool_calls:
+            tool = self.tool_registry.get(tc["name"])
+
+            if tool and tool.requires_confirm and self.settings.require_send_confirm:
+                # Enter confirm gate — read back the full draft before asking
+                desc = self._describe_tool_call(tc["name"], tc["arguments"])
+                self.confirm_store.store(PendingAction(
+                    tool_name=tc["name"],
+                    arguments=tc["arguments"],
+                    description=desc,
+                ))
+
+                # Build a rich readback including the full content
+                readback = self._build_confirm_readback(tc["name"], tc["arguments"])
+                print(f"[{turn.turn_id}] JARVIS: {readback}", flush=True)
+                turn.first_llm_token_ts = now_monotonic()
+                await self._speak_text(turn, readback)
+                self.state.transition(PipelineState.AWAITING_CONFIRM)
+                return
+
+            # Execute directly (no confirm needed)
+            result = await self.tool_registry.execute(tc["name"], tc["arguments"])
+            tool_results.append({"tool_call_id": tc["id"], "content": result})
+
+        # Get the final reply incorporating tool results
+        if tool_results:
+            results_summary = "\n".join(
+                f"- {tr['content']}" for tr in tool_results
+            )
+            final_text = await self.llm.complete_with_tool_results(
+                f"[Tool results:\n{results_summary}\n]\nNow reply to the user based on these results.",
+                tool_results,
+            )
+        else:
+            # This shouldn't happen, but handle gracefully
+            final_text = "I wasn't able to process that request."
+
+        turn.first_llm_token_ts = now_monotonic()
+        for char in final_text:
+            assistant_parts.append(char)
+
+        await self._speak_text(turn, final_text)
+
+        if self._barge_requested.is_set():
+            return
+
+        await self.playback.wait_until_idle(timeout=60.0)
+        self._speak_gate.clear()
+
+        full = "".join(assistant_parts).strip()
+        print(f"[{turn.turn_id}] JARVIS: {full}", flush=True)
+        log_turn_latency(self.logger, turn)
+        self.state.transition(PipelineState.IDLE)
+
+    async def _handle_confirm_turn(self, turn: TurnLatency, user_text: str) -> None:
+        """Handle a user response during AWAITING_CONFIRM state."""
+        pending = self.confirm_store.pending
+        if not pending:
+            self.state.transition(PipelineState.IDLE)
+            return
+
+        result = self.confirm_store.check(user_text)
+        if result is None:
+            # Ambiguous — ask again
+            ask = "Please say yes to confirm or no to cancel."
+            await self._speak_text(turn, ask)
+            return
+
+        self.confirm_store.clear()
+
+        if result == "cancel":
+            self.state.transition(PipelineState.SPEAKING)
+            await self._speak_text(turn, "Cancelled.")
+            await self.playback.wait_until_idle(timeout=30.0)
+            self._speak_gate.clear()
+            self.state.transition(PipelineState.IDLE)
+            return
+
+        # Confirmed — execute the pending tool
+        self.state.transition(PipelineState.THINKING)
+        result_text = await self.tool_registry.execute(
+            pending.tool_name, pending.arguments
+        )
+
+        # Get LLM to summarize the result
+        full_reply = await self.llm.complete_with_tool_results(
+            f"[Tool result: {result_text}]\nSummarize this result for the user briefly.",
+            [{"tool_call_id": "confirm", "content": result_text}],
+        )
+
+        turn.first_llm_token_ts = now_monotonic()
+        await self._speak_text(turn, full_reply)
+
+        if self._barge_requested.is_set():
+            return
+
+        await self.playback.wait_until_idle(timeout=60.0)
+        self._speak_gate.clear()
+        print(f"[{turn.turn_id}] JARVIS: {full_reply}", flush=True)
+        log_turn_latency(self.logger, turn)
+        self.state.transition(PipelineState.IDLE)
+
+    async def _speak_text(self, turn: TurnLatency, text: str) -> None:
+        """Speak a complete text string through the chunker + TTS pipeline."""
+        self.chunker.reset()
+        sentence_index = 0
+        for sentence in self.chunker.feed(text):
+            if self._barge_requested.is_set():
+                return
+            await self._speak_sentence(turn, sentence, sentence_index)
+            sentence_index += 1
+        for sentence in self.chunker.flush():
+            if self._barge_requested.is_set():
+                return
+            await self._speak_sentence(turn, sentence, sentence_index)
+            sentence_index += 1
+
+    def _describe_tool_call(self, name: str, args: dict) -> str:
+        """Generate a human-readable description of a tool call for confirmation."""
+        if name == "send_email":
+            to = args.get("to", "someone")
+            subject = args.get("subject", "no subject")
+            return f"send an email to {to} with subject '{subject}'"
+        if name == "create_calendar_event":
+            summary = args.get("summary", "an event")
+            start = args.get("start_time", "unknown time")
+            return f"create calendar event '{summary}' at {start}"
+        if name == "draft_email":
+            to = args.get("to", "someone")
+            subject = args.get("subject", "no subject")
+            return f"draft an email to {to} with subject '{subject}'"
+        if name == "send_whatsapp_message":
+            to = args.get("to", "someone")
+            text = args.get("text", "")[:50]
+            return f"send WhatsApp to {to}: \"{text}\""
+        if name == "reply_to_instagram_comment":
+            comment_id = args.get("comment_id", "a comment")
+            text = args.get("text", "")[:50]
+            return f"reply to Instagram comment {comment_id}: \"{text}\""
+        if name == "create_instagram_post":
+            caption = args.get("caption", "")[:50]
+            return f"publish Instagram post: \"{caption}\""
+        if name == "create_linkedin_post":
+            text = args.get("text", "")[:50]
+            return f"publish LinkedIn post: \"{text}\""
+        # Generic fallback
+        return f"execute {name}"
+
+    def _build_confirm_readback(self, name: str, args: dict) -> str:
+        """Build a full readback of what will be sent, including content."""
+        if name == "send_email":
+            to = args.get("to", "someone")
+            subject = args.get("subject", "")
+            body = args.get("body", "")
+            parts = [f"Here's the email to {to}."]
+            if subject:
+                parts.append(f"Subject: {subject}.")
+            if body:
+                parts.append(f"Body: {body}.")
+            parts.append("Say send it to confirm, or cancel.")
+            return " ".join(parts)
+
+        if name == "send_whatsapp_message":
+            to = args.get("to", "someone")
+            text = args.get("text", "")
+            parts = [f"Here's the WhatsApp message to {to}."]
+            if text:
+                parts.append(f"Message: {text}.")
+            parts.append("Say send it to confirm, or cancel.")
+            return " ".join(parts)
+
+        if name == "reply_to_instagram_comment":
+            text = args.get("text", "")
+            parts = ["Here's the Instagram reply."]
+            if text:
+                parts.append(f"Reply: {text}.")
+            parts.append("Say send it to confirm, or cancel.")
+            return " ".join(parts)
+
+        if name == "create_instagram_post":
+            caption = args.get("caption", "")
+            parts = ["Here's the Instagram post."]
+            if caption:
+                parts.append(f"Caption: {caption}.")
+            parts.append("Say send it to confirm, or cancel.")
+            return " ".join(parts)
+
+        if name == "create_linkedin_post":
+            text = args.get("text", "")
+            parts = ["Here's the LinkedIn post."]
+            if text:
+                parts.append(f"Post: {text}.")
+            parts.append("Say send it to confirm, or cancel.")
+            return " ".join(parts)
+
+        if name == "create_calendar_event":
+            summary = args.get("summary", "an event")
+            start = args.get("start_time", "")
+            end = args.get("end_time", "")
+            parts = [f"Here's the calendar event: {summary}."]
+            if start:
+                parts.append(f"From {start}")
+                if end:
+                    parts.append(f"to {end}.")
+                else:
+                    parts.append(".")
+            parts.append("Say send it to confirm, or cancel.")
+            return " ".join(parts)
+
+        # Generic fallback
+        desc = self._describe_tool_call(name, args)
+        return f"Sure — {desc}. Say send it to confirm, or cancel."
 
     async def _speak_sentence(self, turn: TurnLatency, text: str, index: int) -> None:
         if self._barge_requested.is_set():

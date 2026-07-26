@@ -30,6 +30,9 @@ logs/**
 !logs/.gitkeep
 *.log
 
+# User data (secrets + personal)
+data/google_token.json
+
 # OS / IDE
 .DS_Store
 .idea/

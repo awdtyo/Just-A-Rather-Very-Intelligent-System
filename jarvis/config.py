@@ -70,16 +70,43 @@ class Settings(BaseSettings):
     tts_sentence_queue_size: int = 8
     playback_queue_size: int = 32
 
+    # --- Memory (profile + notes) ---
+    profile_path: Path = Path("data/profile.yaml")
+    notes_dir: Path = Path("data/notes")
+
+    # --- Tools / confirm gate ---
+    require_send_confirm: bool = True
+
+    # --- Google (OAuth for Calendar + Gmail) ---
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_token_path: Path = Path("data/google_token.json")
+
+    # --- Meta (WhatsApp Cloud API + Instagram Graph API) ---
+    meta_wa_token: str = ""
+    meta_wa_phone_number_id: str = ""
+    meta_ig_token: str = ""
+    meta_ig_user_id: str = ""
+
+    # --- LinkedIn ---
+    linkedin_access_token: str = ""
+
     # --- Observability ---
     log_level: str = "INFO"
     log_json: bool = True
     log_dir: Path = Path("logs")
     debug_state_machine: bool = False
-    barge_in_on_vad: bool = True
-    barge_in_vad_threshold: float = 0.85
-    barge_in_grace_ms: int = 500
+    # VAD barge-in is off by default: laptop speaker echo false-triggers mid-reply.
+    # Interrupt with the wake word instead, or enable if using headphones.
+    barge_in_on_vad: bool = False
+    barge_in_vad_threshold: float = 0.9
+    barge_in_grace_ms: int = 1500
 
-    @field_validator("piper_model_path", "log_dir", "vad_model_path", mode="before")
+    @field_validator(
+        "piper_model_path", "log_dir", "vad_model_path",
+        "profile_path", "notes_dir", "google_token_path",
+        mode="before",
+    )
     @classmethod
     def _coerce_path(cls, value: object) -> object:
         if value is None or value == "":

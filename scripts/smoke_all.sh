@@ -6,6 +6,14 @@ cd "$(dirname "$0")/.."
 source venv/bin/activate
 export PYTHONPATH=.
 
+echo "== MEMORY =="
+python scripts/test_memory.py
+echo "== TOOLS =="
+python scripts/test_tools.py
+echo "== CONNECTORS =="
+python scripts/test_connectors.py
+echo "== GOOGLE =="
+python scripts/test_google.py
 echo "== VAD =="
 python scripts/test_vad.py --synthetic
 echo "== CHUNKER =="
