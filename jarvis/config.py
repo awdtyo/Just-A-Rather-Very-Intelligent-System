@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     log_json: bool = True
     log_dir: Path = Path("logs")
     debug_state_machine: bool = False
+    barge_in_on_vad: bool = True
+    barge_in_vad_threshold: float = 0.85
+    barge_in_grace_ms: int = 500
 
     @field_validator("piper_model_path", "log_dir", "vad_model_path", mode="before")
     @classmethod

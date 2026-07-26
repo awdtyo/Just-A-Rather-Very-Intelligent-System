@@ -2,6 +2,7 @@
 .env
 .venv/
 venv/
+venv-py314.bak/
 
 # Python
 __pycache__/

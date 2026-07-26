@@ -16,12 +16,23 @@ Mic → openWakeWord → Silero VAD → faster-whisper → Groq (stream)
 
 ```bash
 cd "Jarvis Mark II"
+# Prefer Python 3.11/3.12 (3.14 often lacks wheels for ctranslate2 / openwakeword)
+python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 # or: pip install -e .
 
 cp .env.example .env
-# edit .env — at minimum set GROQ_API_KEY
+# edit .env — at minimum set GROQ_API_KEY when you reach the LLM stage
+```
+
+### Wake-word smoke test (step 2)
+
+```bash
+source venv/bin/activate
+PYTHONPATH=. python scripts/test_wake.py --list-devices
+PYTHONPATH=. python scripts/test_wake.py --duration 30
+# Say "hey jarvis" — detections print with score + turn_id
 ```
 
 ### Models to place under `models/`
@@ -36,23 +47,40 @@ cp .env.example .env
 ## Run
 
 ```bash
-python -m jarvis --show-config   # verify env loading
-python -m jarvis                 # full pipeline (step 8+)
-python -m jarvis --stage wake    # isolated stage runners (as implemented)
+python -m jarvis --show-config
+python -m jarvis --debug-state                  # full mic pipeline
+python -m jarvis --text "What time is it?"      # LLM→TTS dry run (no mic)
+python -m jarvis --stage vad --synthetic
 ```
+
+### Stage smoke tests
+
+```bash
+./scripts/smoke_all.sh   # all non-interactive smokes
+# or individually:
+PYTHONPATH=. python scripts/test_wake.py --duration 15
+PYTHONPATH=. python scripts/test_vad.py --synthetic
+PYTHONPATH=. python scripts/test_stt.py --synthetic
+PYTHONPATH=. python scripts/test_llm.py
+PYTHONPATH=. python scripts/test_chunker.py
+PYTHONPATH=. python scripts/test_tts.py --no-play
+PYTHONPATH=. python scripts/test_orchestrator.py
+```
+
+Barge-in works on wake word **or** loud speech while JARVIS is talking (`BARGE_IN_ON_VAD`). If speaker echo false-triggers, raise `BARGE_IN_VAD_THRESHOLD`, increase `BARGE_IN_GRACE_MS`, use headphones, or set `BARGE_IN_ON_VAD=false`.
 
 ## Build order
 
-1. Scaffold + config ← **you are here**
-2. Audio I/O + wake word
-3. Silero VAD gating
-4. Streaming faster-whisper
-5. Groq streaming LLM
-6. Sentence chunker
-7. Streaming Piper TTS
-8. Full asyncio orchestrator + state machine
-9. Barge-in
-10. End-to-end latency logging / live debug
+1. Scaffold + config ← done
+2. Audio I/O + wake word ← done
+3. Silero VAD gating ← done
+4. Streaming faster-whisper ← done
+5. Groq streaming LLM ← done
+6. Sentence chunker ← done
+7. Streaming Piper TTS ← done
+8. Full asyncio orchestrator + state machine ← done
+9. Barge-in ← done
+10. End-to-end latency logging / live debug ← done
 
 ## Latency metrics (JSON lines → `logs/jarvis.jsonl`)
 
