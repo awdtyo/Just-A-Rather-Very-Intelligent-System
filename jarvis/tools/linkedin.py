@@ -27,6 +27,7 @@ def build_linkedin_tools(access_token: str) -> list[Tool]:
 
     async def _read_profile(args: dict[str, Any]) -> str:
         """Read the authenticated user's LinkedIn profile."""
+        args = args or {}
         if not access_token:
             return "Error: LinkedIn access token not configured."
         try:
@@ -57,6 +58,7 @@ def build_linkedin_tools(access_token: str) -> list[Tool]:
 
     async def _create_post(args: dict[str, Any]) -> str:
         """Create a LinkedIn post. Requires user confirmation."""
+        args = args or {}
         if not access_token:
             return "Error: LinkedIn access token not configured."
         text = args.get("text", "")
@@ -105,6 +107,7 @@ def build_linkedin_tools(access_token: str) -> list[Tool]:
 
     async def _draft_post(args: dict[str, Any]) -> str:
         """Draft a LinkedIn post for review (no API call)."""
+        args = args or {}
         text = args.get("text", "")
         if not text:
             return "Error: text is required."
@@ -112,6 +115,7 @@ def build_linkedin_tools(access_token: str) -> list[Tool]:
 
     async def _draft_dm(args: dict[str, Any]) -> str:
         """Draft a LinkedIn DM (LinkedIn does not expose personal messaging API — returns limitation notice)."""
+        args = args or {}
         to_name = args.get("to_name", "someone")
         text = args.get("text", "")
         if not text:

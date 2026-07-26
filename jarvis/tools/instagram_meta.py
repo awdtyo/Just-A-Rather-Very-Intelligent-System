@@ -25,6 +25,7 @@ def build_instagram_tools(
 
     async def _read_comments(args: dict[str, Any]) -> str:
         """Read recent comments on media posts."""
+        args = args or {}
         if not access_token or not ig_user_id:
             return "Error: Instagram credentials not configured."
         try:
@@ -65,6 +66,7 @@ def build_instagram_tools(
 
     async def _reply_to_comment(args: dict[str, Any]) -> str:
         """Reply to a comment. Requires user confirmation."""
+        args = args or {}
         if not access_token or not ig_user_id:
             return "Error: Instagram credentials not configured."
         comment_id = args.get("comment_id", "")
@@ -93,6 +95,7 @@ def build_instagram_tools(
 
     async def _create_post(args: dict[str, Any]) -> str:
         """Create a new Instagram post. Requires user confirmation."""
+        args = args or {}
         if not access_token or not ig_user_id:
             return "Error: Instagram credentials not configured."
         caption = args.get("caption", "")
@@ -138,6 +141,7 @@ def build_instagram_tools(
 
     async def _draft_post(args: dict[str, Any]) -> str:
         """Draft a post for review without publishing."""
+        args = args or {}
         caption = args.get("caption", "")
         image_url = args.get("image_url", "")
         if not caption:

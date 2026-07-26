@@ -57,13 +57,13 @@ class ToolRegistry:
     def is_empty(self) -> bool:
         return len(self._tools) == 0
 
-    async def execute(self, name: str, arguments: dict[str, Any]) -> str:
+    async def execute(self, name: str, arguments: dict[str, Any] | None) -> str:
         """Dispatch a tool call. Returns result text or error message."""
         tool = self._tools.get(name)
         if not tool:
             return f"Error: unknown tool '{name}'"
         try:
-            result = await tool.handler(arguments)
+            result = await tool.handler(arguments or {})
             return result
         except Exception as e:
             logger.exception("tool execution failed: %s", name)

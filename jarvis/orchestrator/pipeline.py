@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import uuid
 from typing import Any, Optional
 
@@ -95,6 +96,24 @@ class Pipeline:
         for tool in build_memory_tools(self.memory):
             self.tool_registry.register(tool)
 
+        # Web search tools (always available, no API key needed)
+        from jarvis.tools.web_search import build_web_search_tools
+
+        for tool in build_web_search_tools():
+            self.tool_registry.register(tool)
+
+        # Wikipedia tools (always available, no API key needed)
+        from jarvis.tools.wikipedia import build_wikipedia_tools
+
+        for tool in build_wikipedia_tools():
+            self.tool_registry.register(tool)
+
+        # System tools (always available)
+        from jarvis.tools.system import build_system_tools
+
+        for tool in build_system_tools():
+            self.tool_registry.register(tool)
+
         # Google tools (only if OAuth token exists)
         token_path = self.settings.resolve_path(self.settings.google_token_path)
         if token_path.exists():
@@ -176,11 +195,13 @@ class Pipeline:
             asyncio.create_task(self._fanout_loop(), name="fanout"),
             asyncio.create_task(self._wake_loop(), name="wake-loop"),
             asyncio.create_task(self._barge_vad_loop(), name="barge-vad"),
+            asyncio.create_task(self._stdin_barge_loop(), name="stdin-barge"),
         ]
         log_event(self.logger, "pipeline_running")
         tools_desc = ", ".join(self.tool_registry.names) if not self.tool_registry.is_empty else "none"
         print(
             f"JARVIS listening — say 'hey jarvis'. Ctrl+C to stop. "
+            f"Press Enter to interrupt during speech. "
             f"[tools: {tools_desc}]",
             flush=True,
         )
@@ -286,6 +307,23 @@ class Pipeline:
                     log_event(self.logger, "barge_in_vad", turn_id=ev.turn_id)
                     await self._handle_barge_in(wake=None)
                     break
+
+    async def _stdin_barge_loop(self) -> None:
+        """Press Enter to interrupt JARVIS mid-speech."""
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+        while not self._stop.is_set():
+            try:
+                await reader.readline()
+            except Exception:
+                break
+            if self.state.state in {PipelineState.SPEAKING, PipelineState.THINKING}:
+                log_event(self.logger, "barge_in_stdin", turn_id=(
+                    self._active_turn.turn_id if self._active_turn else "stdin"
+                ))
+                await self._handle_barge_in(wake=None)
 
     async def _begin_turn(self, event: WakeEvent) -> None:
         if self._utterance_task and not self._utterance_task.done():

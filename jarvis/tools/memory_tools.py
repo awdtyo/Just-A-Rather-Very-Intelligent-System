@@ -12,6 +12,7 @@ def build_memory_tools(memory: ProfileMemory) -> list[Tool]:
     """Return memory-related tools bound to the given ProfileMemory instance."""
 
     async def _save_note(args: dict[str, Any]) -> str:
+        args = args or {}
         title = args.get("title", "").strip()
         content = args.get("content", "").strip()
         if not title or not content:
@@ -19,6 +20,7 @@ def build_memory_tools(memory: ProfileMemory) -> list[Tool]:
         return memory.save_note(title, content)
 
     async def _update_profile(args: dict[str, Any]) -> str:
+        args = args or {}
         field_path = args.get("field", "").strip()
         value = args.get("value", "").strip()
         if not field_path or not value:

@@ -32,6 +32,7 @@ def build_calendar_tools(
     """Return Google Calendar tools bound to the given OAuth credentials."""
 
     async def _list_today(args: dict[str, Any]) -> str:
+        args = args or {}
         try:
             service = _get_calendar_service(token_path, client_id, client_secret)
             now = datetime.now(timezone.utc)
@@ -66,6 +67,7 @@ def build_calendar_tools(
             return f"Error reading calendar: {e}"
 
     async def _list_week(args: dict[str, Any]) -> str:
+        args = args or {}
         try:
             service = _get_calendar_service(token_path, client_id, client_secret)
             now = datetime.now(timezone.utc)
@@ -103,6 +105,7 @@ def build_calendar_tools(
             return f"Error reading calendar: {e}"
 
     async def _create_event(args: dict[str, Any]) -> str:
+        args = args or {}
         try:
             service = _get_calendar_service(token_path, client_id, client_secret)
             summary = args.get("summary", "")

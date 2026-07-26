@@ -51,6 +51,7 @@ def build_gmail_tools(
     """Return Gmail tools bound to the given OAuth credentials."""
 
     async def _read_inbox(args: dict[str, Any]) -> str:
+        args = args or {}
         try:
             service = _get_gmail_service(token_path, client_id, client_secret)
             max_results = args.get("max_results", 5)
@@ -78,7 +79,10 @@ def build_gmail_tools(
                 subject = headers.get("Subject", "(no subject)")
                 sender = headers.get("From", "(unknown sender)")
                 snippet = msg.get("snippet", "")[:100]
-                lines.append(f"- From: {sender}\n  Subject: {subject}\n  Preview: {snippet}")
+                lines.append(
+                    f"- From: {sender}\n  Subject: {subject}\n"
+                    f"  Preview: {snippet}\n  ID: {msg_ref['id']}"
+                )
 
             return "Recent emails:\n" + "\n".join(lines)
         except Exception as e:
@@ -86,6 +90,7 @@ def build_gmail_tools(
             return f"Error reading inbox: {e}"
 
     async def _read_email(args: dict[str, Any]) -> str:
+        args = args or {}
         try:
             service = _get_gmail_service(token_path, client_id, client_secret)
             message_id = args.get("message_id", "")
@@ -110,6 +115,7 @@ def build_gmail_tools(
 
     async def _draft_email(args: dict[str, Any]) -> str:
         """Create a draft email (does not send)."""
+        args = args or {}
         try:
             service = _get_gmail_service(token_path, client_id, client_secret)
             to = args.get("to", "")
@@ -137,6 +143,7 @@ def build_gmail_tools(
 
     async def _send_email(args: dict[str, Any]) -> str:
         """Send an email directly. Requires confirmation."""
+        args = args or {}
         try:
             service = _get_gmail_service(token_path, client_id, client_secret)
             to = args.get("to", "")

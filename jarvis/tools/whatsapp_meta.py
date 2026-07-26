@@ -25,6 +25,7 @@ def build_whatsapp_tools(
 
     async def _read_inbox(args: dict[str, Any]) -> str:
         """Read recent inbound messages (requires webhook config for full history)."""
+        args = args or {}
         if not access_token or not phone_number_id:
             return "Error: WhatsApp credentials not configured."
         try:
@@ -72,6 +73,7 @@ def build_whatsapp_tools(
 
     async def _send_message(args: dict[str, Any]) -> str:
         """Send a text message. Requires user confirmation."""
+        args = args or {}
         if not access_token or not phone_number_id:
             return "Error: WhatsApp credentials not configured."
         to = args.get("to", "")
@@ -105,6 +107,7 @@ def build_whatsapp_tools(
 
     async def _draft_reply(args: dict[str, Any]) -> str:
         """Draft a reply (stores text for review, does not send)."""
+        args = args or {}
         to = args.get("to", "")
         text = args.get("text", "")
         if not to or not text:

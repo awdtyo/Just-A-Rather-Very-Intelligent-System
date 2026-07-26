@@ -115,14 +115,41 @@ class GroqBrain:
             len(tools),
         )
 
-        response = await self._client.chat.completions.create(
-            model=self.settings.groq_model,
-            messages=messages,
-            temperature=self.settings.groq_temperature,
-            max_tokens=self.settings.groq_max_tokens,
-            tools=tools,
-            tool_choice="auto",
-        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=self.settings.groq_model,
+                messages=messages,
+                temperature=self.settings.groq_temperature,
+                max_tokens=self.settings.groq_max_tokens,
+                tools=tools,
+                tool_choice="auto",
+            )
+        except Exception as e:
+            # If tool call validation fails (model hallucinated a tool),
+            # fall back to a plain completion without tools.
+            err_str = str(e).lower()
+            is_tool_error = (
+                "tool call validation" in err_str
+                or "not in request.tools" in err_str
+                or "tool_use_failed" in err_str
+                or "brave_search" in err_str
+            )
+            if is_tool_error:
+                logger.warning("tool hallucination detected, falling back to text: %s", e)
+                plain_messages = self._build_messages(user_text)
+                stream = await self._client.chat.completions.create(
+                    model=self.settings.groq_model,
+                    messages=plain_messages,
+                    temperature=self.settings.groq_temperature,
+                    max_tokens=self.settings.groq_max_tokens,
+                )
+                text = stream.choices[0].message.content or ""
+                self._history.append({"role": "user", "content": user_text})
+                if text:
+                    self._history.append({"role": "assistant", "content": text})
+                logger.info("llm_fallback_complete chars=%d", len(text))
+                return text, []
+            raise
 
         choice = response.choices[0]
         message = choice.message
