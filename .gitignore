@@ -3,6 +3,7 @@
 .venv/
 venv/
 venv-py314.bak/
+.env.example
 
 # Python
 __pycache__/
