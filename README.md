@@ -9,7 +9,7 @@
 
 ## Origin Story
  
-Every genius needs a voice in their ear — something that listens before you finish the sentence, thinks faster than you can doubt it, and talks back like it's got opinions of its own. Tony had a fictional AI running his mansion, his suits, and his sarcasm reserves. **JARVIS Mark II** is the real-world, open-source, no-billion-dollar-R&D-budget answer to that.
+Every genius needs a voice in their ear — something that listens before you finish the sentence, thinks faster than you can doubt it, and talks back like it's got opinions of its own. Tony had a fictional AI running his mansion, his suits, and his sarcasm reserves. **JARVIS Mark I** is the real-world, open-source, no-billion-dollar-R&D-budget answer to that.
  
 No cloud dependency holding your hand. No "let me think about that" spinner. Just wake word → listen → think → speak, stitched together with `asyncio` and stubbornness.
 
