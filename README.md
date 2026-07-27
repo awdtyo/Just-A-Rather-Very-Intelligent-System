@@ -1,6 +1,5 @@
 # JARVIS v2
-![Animated Demo]([https://example.com](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNWllaTRmZXoyMXljaWE1Nmtta2RzMG40N2dwcHduZWw4bDR2bWZ1cSZlcD12MV9naWZzX3JlbGF0ZWQmY3Q9Zw/rje8atJc3hnYQ/giphy.gif
-))
+![Animated Demo](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNWllaTRmZXoyMXljaWE1Nmtta2RzMG40N2dwcHduZWw4bDR2bWZ1cSZlcD12MV9naWZzX3JlbGF0ZWQmY3Q9Zw/rje8atJc3hnYQ/giphy.gif)
 
 
 Low-latency local voice assistant. The design goal is **minimizing time-to-first-audio** via a streaming, overlapping asyncio pipeline — not just swapping models.
