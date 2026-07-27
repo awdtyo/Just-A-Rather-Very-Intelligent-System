@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     output_device: Optional[int | str] = None
 
     # --- Wake word ---
-    wake_model: str = "hey_jarvis"
+    wake_model: str = "jarvis"
     wake_threshold: float = 0.5
     wake_inference_framework: str = "onnx"
 

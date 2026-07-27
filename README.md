@@ -32,7 +32,7 @@ cp .env.example .env
 source venv/bin/activate
 PYTHONPATH=. python scripts/test_wake.py --list-devices
 PYTHONPATH=. python scripts/test_wake.py --duration 30
-# Say "hey jarvis" — detections print with score + turn_id
+# Say "Jarvis" — detections print with score + turn_id
 ```
 
 ### Models to place under `models/`
@@ -40,7 +40,7 @@ PYTHONPATH=. python scripts/test_wake.py --duration 30
 | Asset | Notes |
 |-------|--------|
 | Piper voice | Download `en_US-lessac-medium.onnx` + `.onnx.json` → `models/` |
-| Wake word | Stock `hey_jarvis` via openWakeWord (auto-fetched), or set `WAKE_MODEL` to a custom `.onnx` |
+| Wake word | Stock `jarvis` (uses `hey_jarvis` model) via openWakeWord (auto-fetched), or set `WAKE_MODEL` to a custom `.onnx` |
 | Silero VAD | ONNX model cached on first use (or set `VAD_MODEL_PATH`) |
 | Whisper | `base.en` downloaded by faster-whisper on first run |
 
@@ -107,6 +107,6 @@ Per turn we log:
 | Groq model | `llama-3.1-8b-instant` |
 | Whisper | `base.en` / `int8` / CPU |
 | Piper voice | `models/en_US-lessac-medium.onnx` |
-| Wake model | `hey_jarvis` |
+| Wake model | `jarvis` (uses `hey_jarvis` ONNX model) |
 | History | last 6 turns |
 | Audio | 16 kHz mono, 30 ms frames, sounddevice |

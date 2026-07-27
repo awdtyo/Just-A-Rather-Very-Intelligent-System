@@ -200,7 +200,7 @@ class Pipeline:
         log_event(self.logger, "pipeline_running")
         tools_desc = ", ".join(self.tool_registry.names) if not self.tool_registry.is_empty else "none"
         print(
-            f"JARVIS listening — say 'hey jarvis'. Ctrl+C to stop. "
+            f"JARVIS listening — say 'Jarvis'. Ctrl+C to stop. "
             f"Press Enter to interrupt during speech. "
             f"[tools: {tools_desc}]",
             flush=True,

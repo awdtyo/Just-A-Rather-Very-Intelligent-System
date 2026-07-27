@@ -66,7 +66,7 @@ async def run(args: argparse.Namespace) -> int:
     print(f"Wake model : {model_path}")
     print(f"Threshold  : {settings.wake_threshold}")
     print(f"Sample rate: {settings.sample_rate} Hz, frame={settings.frame_ms} ms")
-    print("Say the wake word (default: 'hey jarvis'). Ctrl+C to stop.\n")
+    print("Say the wake word (default: 'Jarvis'). Ctrl+C to stop.\n")
 
     detector = WakeWordDetector(
         settings,
