@@ -30,6 +30,7 @@ from jarvis.types import (
 )
 from jarvis.vad.silero import SileroVAD
 from jarvis.wake.detector import WakeWordDetector
+from jarvis.web.hub import hub
 
 logger = logging.getLogger("jarvis.orchestrator")
 
@@ -40,7 +41,10 @@ class Pipeline:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.logger = setup_logging(settings)
-        self.state = StateMachine(debug=settings.debug_state_machine)
+        self.state = StateMachine(
+            debug=settings.debug_state_machine,
+            on_change=self._on_state_change,
+        )
 
         self.raw_q: asyncio.Queue = asyncio.Queue(maxsize=settings.audio_queue_size)
         self.wake_q: asyncio.Queue = asyncio.Queue(maxsize=settings.audio_queue_size)
@@ -231,6 +235,9 @@ class Pipeline:
     def request_stop(self) -> None:
         self._stop.set()
 
+    def _on_state_change(self, old: PipelineState, new: PipelineState) -> None:
+        hub.publish("state", state=new.name, old=old.name)
+
     def _on_first_audio(self, ts: float) -> None:
         turn = self._active_turn
         if turn is not None and turn.first_audio_out_ts is None:
@@ -310,10 +317,17 @@ class Pipeline:
 
     async def _stdin_barge_loop(self) -> None:
         """Press Enter to interrupt JARVIS mid-speech."""
+        if sys.stdin is None or not sys.stdin.isatty():
+            logger.info("stdin barge loop disabled (stdin is not a terminal)")
+            return
         loop = asyncio.get_event_loop()
         reader = asyncio.StreamReader()
         protocol = asyncio.StreamReaderProtocol(reader)
-        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+        try:
+            await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+        except Exception:
+            logger.info("stdin barge loop disabled (stdin not readable)")
+            return
         while not self._stop.is_set():
             try:
                 await reader.readline()
@@ -453,6 +467,7 @@ class Pipeline:
             speech_end_to_stt_ms=turn.ms(turn.speech_end_ts, turn.stt_final_ts),
         )
         print(f"[{turn.turn_id}] You: {final.text}", flush=True)
+        hub.publish("user_text", text=final.text, turn_id=turn.turn_id)
 
         if not final.text:
             self.state.transition(PipelineState.IDLE)
@@ -517,6 +532,7 @@ class Pipeline:
 
         full = "".join(assistant_parts).strip()
         print(f"[{turn.turn_id}] JARVIS: {full}", flush=True)
+        hub.publish("jarvis_text", text=full, turn_id=turn.turn_id)
         log_turn_latency(self.logger, turn)
         metrics = turn.as_dict()
         print(
@@ -586,6 +602,7 @@ class Pipeline:
 
         full = "".join(assistant_parts).strip()
         print(f"[{turn.turn_id}] JARVIS: {full}", flush=True)
+        hub.publish("jarvis_text", text=full, turn_id=turn.turn_id)
         log_turn_latency(self.logger, turn)
         self.state.transition(PipelineState.IDLE)
 
@@ -634,6 +651,7 @@ class Pipeline:
         await self.playback.wait_until_idle(timeout=60.0)
         self._speak_gate.clear()
         print(f"[{turn.turn_id}] JARVIS: {full_reply}", flush=True)
+        hub.publish("jarvis_text", text=full_reply, turn_id=turn.turn_id)
         log_turn_latency(self.logger, turn)
         self.state.transition(PipelineState.IDLE)
 

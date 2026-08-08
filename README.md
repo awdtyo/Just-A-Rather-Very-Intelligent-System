@@ -44,6 +44,12 @@ PYTHONPATH=. python scripts/test_wake.py --duration 30
 | Silero VAD | ONNX model cached on first use (or set `VAD_MODEL_PATH`) |
 | Whisper | `base.en` downloaded by faster-whisper on first run |
 
+### Google OAuth (Calendar + Gmail)
+
+One-time browser auth: `PYTHONPATH=. python scripts/google_oauth_setup.py` — writes `data/google_token.json` (gitignored).
+
+> **Important:** while your OAuth app is in **"Testing"** status, Google revokes refresh tokens after **7 days** and Gmail/Calendar tools start failing with `invalid_grant`. Fix it permanently by setting the app to **"In production"** (Google Cloud Console → OAuth consent screen), then re-auth once. Otherwise just re-run the setup script whenever the token dies; it now falls back to a fresh login instead of crashing.
+
 ## Run
 
 ```bash
@@ -52,6 +58,17 @@ python -m jarvis --debug-state                  # full mic pipeline
 python -m jarvis --text "What time is it?"      # LLM→TTS dry run (no mic)
 python -m jarvis --stage vad --synthetic
 ```
+
+### Web UI
+
+Serve a live dashboard (animated orb, state captions, weather, CPU/RAM/disk) while the pipeline runs:
+
+```bash
+python -m jarvis --web 8080     # full pipeline + web UI (open http://127.0.0.1:8080)
+python -m jarvis.web --port 8080  # UI only (state mirror, no audio)
+```
+
+The orb animates by pipeline state: **listening** (green pulse) → **transcribing** (pink) → **thinking** (purple spin) → **speaking** (radiating rings + waveform). Live transcripts and latency events stream over WebSocket. Weather uses `wttr.in` (no API key) for `WEATHER_LOCATION` (default `Kolkata`).
 
 ### Stage smoke tests
 

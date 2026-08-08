@@ -50,6 +50,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Full-pipeline dry run: skip mic/wake/STT and speak a reply to this text",
     )
+    parser.add_argument(
+        "--web",
+        nargs="?",
+        const=8080,
+        type=int,
+        metavar="PORT",
+        help="Also serve the web UI on PORT (default 8080)",
+    )
     return parser
 
 
@@ -103,16 +111,25 @@ async def _run_text_turn(user_text: str) -> int:
     return 0
 
 
-async def _run_full() -> int:
+async def _run_full(web_port: int | None = None) -> int:
     from jarvis.orchestrator.pipeline import Pipeline
 
     settings = get_settings()
     pipeline = Pipeline(settings)
+    web_task = None
+    if web_port:
+        from jarvis.web.server import start_web
+
+        web_task = asyncio.create_task(start_web(port=web_port, settings=settings))
     try:
         await pipeline.run()
     except KeyboardInterrupt:
         pipeline.request_stop()
         await pipeline.shutdown()
+    finally:
+        if web_task is not None:
+            web_task.cancel()
+            await asyncio.gather(web_task, return_exceptions=True)
     return 0
 
 
@@ -157,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.text:
         return asyncio.run(_run_text_turn(args.text))
 
-    return asyncio.run(_run_full())
+    return asyncio.run(_run_full(web_port=args.web))
 
 
 if __name__ == "__main__":

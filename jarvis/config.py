@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     profile_path: Path = Path("data/profile.yaml")
     notes_dir: Path = Path("data/notes")
 
+    # --- Web UI ---
+    weather_location: str = "Kolkata"
+    weather_update_seconds: int = 600
+
     # --- Tools / confirm gate ---
     require_send_confirm: bool = True
 

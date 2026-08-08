@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JARVIS</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>JARVIS</h1>
+      <span class="brand-sub">voice assistant</span>
+    </div>
+    <div class="conn" id="conn">
+      <span class="conn-dot"></span><span id="conn-label">connecting…</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Left: weather -->
+    <aside class="panel weather" id="weather-panel">
+      <h2 class="panel-title">Weather</h2>
+      <div class="weather-body" id="weather-body">
+        <div class="weather-main">
+          <img id="weather-icon" class="weather-icon" alt="" />
+          <div class="weather-temp" id="weather-temp">—</div>
+        </div>
+        <div class="weather-loc" id="weather-loc">…</div>
+        <div class="weather-desc" id="weather-desc">…</div>
+        <div class="weather-meta">
+          <span id="weather-feels">Feels: —</span>
+          <span id="weather-hum">Humidity: —</span>
+          <span id="weather-wind">Wind: —</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center: orb -->
+    <section class="stage">
+      <div class="orb-wrap" id="orb-wrap" data-state="IDLE">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <div class="orb-glow"></div>
+        <div class="orb" id="orb">
+          <div class="orb-core"></div>
+          <div class="orb-sheen"></div>
+        </div>
+      </div>
+      <div class="state-caption" id="state-caption">
+        <span class="state-pulse"></span>
+        <span id="state-text">Idle</span>
+      </div>
+      <div class="waveform" id="waveform" aria-hidden="true"></div>
+    </section>
+
+    <!-- Right: system stats -->
+    <aside class="panel stats" id="stats-panel">
+      <h2 class="panel-title">System</h2>
+      <div class="stat">
+        <div class="stat-head"><span>CPU</span><span id="cpu-label">—%</span></div>
+        <div class="bar"><div class="bar-fill" id="cpu-bar" style="width:0%"></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><span>RAM</span><span id="ram-label">—%</span></div>
+        <div class="bar"><div class="bar-fill" id="ram-bar" style="width:0%"></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><span>Storage</span><span id="disk-label">—%</span></div>
+        <div class="bar"><div class="bar-fill" id="disk-bar" style="width:0%"></div></div>
+      </div>
+      <div class="stat-foot" id="sys-foot">loading…</div>
+    </aside>
+  </main>
+
+  <!-- Transcript -->
+  <section class="transcript" id="transcript">
+    <div class="transcript-scroll" id="transcript-scroll">
+      <div class="transcript-empty" id="transcript-empty">Say "Jarvis" to begin…</div>
+    </div>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

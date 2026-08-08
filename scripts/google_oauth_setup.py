@@ -55,14 +55,17 @@ def main() -> int:
 
     # If token already exists, try to refresh it
     if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            token_path.write_text(creds.to_json())
-            print(f"Token refreshed: {token_path}")
+        try:
+            creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+                token_path.write_text(creds.to_json())
+                print(f"Token refreshed: {token_path}")
+                return 0
+            print("Token is valid — no re-auth needed.")
             return 0
-        print("Token is valid — no re-auth needed.")
-        return 0
+        except Exception as e:
+            print(f"Token refresh failed ({e}); starting fresh OAuth flow.")
 
     # Build the OAuth consent screen URL
     client_config = {
